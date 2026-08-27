@@ -6,10 +6,19 @@ from pydantic import BaseModel, Field
 from typing import Literal
 from fastapi.middleware.cors import CORSMiddleware
 
+
+# --------------------------------------------------
+# Load ML Model
+# --------------------------------------------------
+
 model = joblib.load("Mental_Health_Model.pkl")
 
+
+# --------------------------------------------------
+# Top Countries
+# --------------------------------------------------
+
 top_countries = [
-    "Other",
     "India",
     "USA",
     "Canada",
@@ -21,69 +30,202 @@ top_countries = [
     "France"
 ]
 
+
+# --------------------------------------------------
+# FastAPI App
+# --------------------------------------------------
+
 app = FastAPI()
+
+
+# --------------------------------------------------
+# CORS
+# --------------------------------------------------
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-#A First Pydantic model
+
+
+# --------------------------------------------------
+# Pydantic Input Model
+# --------------------------------------------------
+
 class StudentData(BaseModel):
-    Age                             : int=Field(..., ge=10, le=100),
-    Gender                          : str
-    Country                         : str
-    Academic_Level                  : Literal['Undergraduate', 'Graduate', 'High School']
-    Most_Used_Platform              : Literal['Facebook', 'LinkedIn', 'Instagram', 'Snapchat', 'Twitter',
-                                                'YouTube', 'TikTok', 'LINE', 'KakaoTalk', 'VKontakte', 'WhatsApp',
-                                                'WeChat']                    
-    Purpose_Of_Use                  : Literal['Networking', 'Education', 'Entertainment', 'News']
-    Avg_Daily_Usage_Hours           : float=Field(..., ge=6, le=24)
-    Daily_Unlocks                   : float=Field(..., ge=0, le=24)
-    Study_Hours                     : float=Field(..., ge=0, le=24)
-    Physical_Activity_Hours         : float=Field(..., ge=0, le=2)
-    Sleep_Hours_Per_Night           : float=Field(..., ge=0, le=24)
-    Stress_Level                    : float=Literal['Medium', 'Low', 'Very High', 'High']
+
+    age: int = Field(..., ge=10, le=100)
+
+    gender: Literal["Male", "Female"]
+
+    country: str
+
+    academic_level: Literal[
+        "Undergraduate",
+        "Graduate",
+        "High School"
+    ]
+
+    most_used_platform: Literal[
+        "Facebook",
+        "LinkedIn",
+        "Instagram",
+        "Snapchat",
+        "Twitter",
+        "YouTube",
+        "TikTok",
+        "LINE",
+        "KakaoTalk",
+        "VKontakte",
+        "WhatsApp",
+        "WeChat"
+    ]
+
+    purpose_of_use: Literal[
+        "Networking",
+        "Education",
+        "Entertainment",
+        "News"
+    ]
+
+    avg_daily_usage_hours: float = Field(
+        ...,
+        ge=0,
+        le=24
+    )
+
+    daily_unlocks: int = Field(
+        ...,
+        ge=0
+    )
+
+    study_hours: float = Field(
+        ...,
+        ge=0,
+        le=24
+    )
+
+    physical_activity_hours: float = Field(
+        ...,
+        ge=0,
+        le=24
+    )
+
+    sleep_hours_per_night: float = Field(
+        ...,
+        ge=0,
+        le=24
+    )
+
+    stress_level: Literal[
+        "Low",
+        "Medium",
+        "High",
+        "Very High"
+    ]
 
 
-#Describe What we send Back
+# --------------------------------------------------
+# Prediction Response
+# --------------------------------------------------
+
 class PredictionResponse(BaseModel):
+
     predicted_mental_health_score: float
 
 
+# --------------------------------------------------
+# Home Route
+# --------------------------------------------------
 
-
-
-
-
-
-
-@app.get('/')
+@app.get("/")
 def greet():
-    return {'Welcome to the Mental Health Prediction API'}
 
-@app.post('/predict', response_model=PredictionResponse)
-def predict(data:StudentData):
-    country_group =data.country if  data.country in top_countries else "Other"
-    input_row= pd.DataFrame([{
-    'Age',: data.Age,
-    'Gender',: data.Gender,
-    'Country',: data.Country,
-    'Academic_Level',: data.Academic_Level,
-    'Most_Used_Platform',: data.Most_Used_Platform,
-    'Purpose_Of_Use',: data.Purpose_Of_Use,
-    'Avg_Daily_Usage_Hours',: data.Avg_Daily_Usage_Hours,
-    'Daily_Unlocks',: data.Daily_Unlocks,
-    'Study_Hours',: data.Study_Hours,
-    'Physical_Activity_Hours',: data.Physical_Activity_Hours,
-    'Sleep_Hours_Per_Night',: data.Sleep_Hours_Per_Night,
-    'Stress_Level',: data.Stress_Level,
-    'Mental_Health_Score',: data.Mental_Health_Score,
-    'Grouped_country',: country_group,}])
+    return {
+        "message": "Welcome to the Mental Health Prediction API"
+    }
+
+
+# --------------------------------------------------
+# Prediction Route
+# --------------------------------------------------
+
+@app.post(
+    "/predict",
+    response_model=PredictionResponse
+)
+def predict(data: StudentData):
+
+    # ----------------------------------------------
+    # Group country
+    # ----------------------------------------------
+
+    country_group = (
+        data.country
+        if data.country in top_countries
+        else "Other"
+    )
+
+
+    # ----------------------------------------------
+    # Create input DataFrame
+    # ----------------------------------------------
+
+    input_row = pd.DataFrame([{
+
+        "Age": data.age,
+
+        "Gender": data.gender,
+
+        "Country": data.country,
+
+        "Academic_Level": data.academic_level,
+
+        "Most_Used_Platform": data.most_used_platform,
+
+        "Purpose_Of_Use": data.purpose_of_use,
+
+        "Avg_Daily_Usage_Hours":
+            data.avg_daily_usage_hours,
+
+        "Daily_Unlocks":
+            data.daily_unlocks,
+
+        "Study_Hours":
+            data.study_hours,
+
+        "Physical_Activity_Hours":
+            data.physical_activity_hours,
+
+        "Sleep_Hours_Per_Night":
+            data.sleep_hours_per_night,
+
+        "Stress_Level":
+            data.stress_level,
+
+        "Grouped_country":
+            country_group
+
+    }])
+
+
+    # ----------------------------------------------
+    # Prediction
+    # ----------------------------------------------
 
     prediction = model.predict(input_row)[0]
-    return PredictionResponse(predicted_mental_health_score= round(float(prediction)))
 
 
-    
+    # ----------------------------------------------
+    # Return response
+    # ----------------------------------------------
+
+    return PredictionResponse(
+        predicted_mental_health_score=round(
+            float(prediction),
+            2
+        )
+    )
